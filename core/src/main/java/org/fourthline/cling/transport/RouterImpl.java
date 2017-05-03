@@ -155,13 +155,13 @@ public class RouterImpl implements Router {
 
     @Override
     public boolean disable() throws RouterException {
-        lock(writeLock);
+        lock(writeLock, getLockTimeoutMillis() * 2);
         try {
             if (enabled) {
                 log.fine("Disabling network services...");
 
                 if (streamClient != null) {
-                    log.fine("Stopping stream client connection management/pool");
+                    log.fine("StoppiFng stream client connection management/pool");
                     streamClient.stop();
                     streamClient = null;
                 }
@@ -519,7 +519,7 @@ public class RouterImpl implements Router {
      * @return Defaults to 6 seconds, should be longer than it takes the router to be enabled/disabled.
      */
     protected int getLockTimeoutMillis() {
-        return 6000;
+        return 15000;
     }
 
 }
