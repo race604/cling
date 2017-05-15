@@ -375,27 +375,32 @@ public class RouterImpl implements Router {
         }
     }
 
-    protected void startInterfaceBasedTransports(Iterator<NetworkInterface> interfaces) throws InitializationException {
-        while (interfaces.hasNext()) {
-            NetworkInterface networkInterface = interfaces.next();
+    protected void startInterfaceBasedTransports(List<NetworkInterface> interfacesList) throws InitializationException {
+        synchronized (interfacesList) {
+            Iterator<NetworkInterface> interfaces = interfacesList.iterator();
+            while (interfaces.hasNext()) {
+                NetworkInterface networkInterface = interfaces.next();
 
-            // We only have the MulticastReceiver as an interface-based transport
-            MulticastReceiver multicastReceiver = getConfiguration().createMulticastReceiver(networkAddressFactory);
-            if (multicastReceiver == null) {
-                log.info("Configuration did not create a MulticastReceiver for: " + networkInterface);
-            } else {
-                try {
-                    if (log.isLoggable(Level.FINE))
-                        log.fine("Init multicast receiver on interface: " + networkInterface.getDisplayName());
-                    multicastReceiver.init(
-                        networkInterface,
-                        this,
-                        networkAddressFactory,
-                        getConfiguration().getDatagramProcessor()
-                    );
+                // We only have the MulticastReceiver as an interface-based transport
+                MulticastReceiver multicastReceiver = getConfiguration()
+                        .createMulticastReceiver(networkAddressFactory);
+                if (multicastReceiver == null) {
+                    log.info("Configuration did not create a MulticastReceiver for: " +
+                            networkInterface);
+                } else {
+                    try {
+                        if (log.isLoggable(Level.FINE))
+                            log.fine("Init multicast receiver on interface: " +
+                                    networkInterface.getDisplayName());
+                        multicastReceiver.init(
+                                networkInterface,
+                                this,
+                                networkAddressFactory,
+                                getConfiguration().getDatagramProcessor()
+                        );
 
-                    multicastReceivers.put(networkInterface, multicastReceiver);
-                } catch (InitializationException ex) {
+                        multicastReceivers.put(networkInterface, multicastReceiver);
+                    } catch (InitializationException ex) {
                     /* TODO: What are some recoverable exceptions for this?
                     log.warning(
                         "Ignoring network interface '"
@@ -407,58 +412,64 @@ public class RouterImpl implements Router {
                     it.remove();
                     continue; // Don't need to try anything else on this interface
                     */
-                    throw ex;
+                        throw ex;
+                    }
                 }
             }
-        }
 
-        for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers.entrySet()) {
-            if (log.isLoggable(Level.FINE))
-                log.fine("Starting multicast receiver on interface: " + entry.getKey().getDisplayName());
-            getConfiguration().getMulticastReceiverExecutor().execute(entry.getValue());
+            for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers
+                    .entrySet()) {
+                if (log.isLoggable(Level.FINE))
+                    log.fine("Starting multicast receiver on interface: " +
+                            entry.getKey().getDisplayName());
+                getConfiguration().getMulticastReceiverExecutor().execute(entry.getValue());
+            }
         }
     }
 
-    protected void startAddressBasedTransports(Iterator<InetAddress> addresses) throws InitializationException {
-        while (addresses.hasNext()) {
-            InetAddress address = addresses.next();
+    protected void startAddressBasedTransports(List<InetAddress> addressesList) throws InitializationException {
+        synchronized (addressesList) {
+            Iterator<InetAddress> addresses = addressesList.iterator();
+            while (addresses.hasNext()) {
+                InetAddress address = addresses.next();
 
-            // HTTP servers
-            StreamServer streamServer = getConfiguration().createStreamServer(networkAddressFactory);
-            if (streamServer == null) {
-                log.info("Configuration did not create a StreamServer for: " + address);
-            } else {
-                try {
-                    if (log.isLoggable(Level.FINE))
-                        log.fine("Init stream server on address: " + address);
-                    streamServer.init(address, this);
-                    streamServers.put(address, streamServer);
-                } catch (InitializationException ex) {
-                    // Try to recover
-                    Throwable cause = Exceptions.unwrap(ex);
-                    if (cause instanceof BindException) {
-                        log.warning("Failed to init StreamServer: " + cause);
+                // HTTP servers
+                StreamServer streamServer = getConfiguration()
+                        .createStreamServer(networkAddressFactory);
+                if (streamServer == null) {
+                    log.info("Configuration did not create a StreamServer for: " + address);
+                } else {
+                    try {
                         if (log.isLoggable(Level.FINE))
-                            log.log(Level.FINE, "Initialization exception root cause", cause);
-                        log.warning("Removing unusable address: " + address);
-                        addresses.remove();
-                        continue; // Don't try anything else with this address
+                            log.fine("Init stream server on address: " + address);
+                        streamServer.init(address, this);
+                        streamServers.put(address, streamServer);
+                    } catch (InitializationException ex) {
+                        // Try to recover
+                        Throwable cause = Exceptions.unwrap(ex);
+                        if (cause instanceof BindException) {
+                            log.warning("Failed to init StreamServer: " + cause);
+                            if (log.isLoggable(Level.FINE))
+                                log.log(Level.FINE, "Initialization exception root cause", cause);
+                            log.warning("Removing unusable address: " + address);
+                            addresses.remove();
+                            continue; // Don't try anything else with this address
+                        }
+                        throw ex;
                     }
-                    throw ex;
                 }
-            }
 
-            // Datagram I/O
-            DatagramIO datagramIO = getConfiguration().createDatagramIO(networkAddressFactory);
-            if (datagramIO == null) {
-                log.info("Configuration did not create a StreamServer for: " + address);
-            } else {
-                try {
-                    if (log.isLoggable(Level.FINE))
-                        log.fine("Init datagram I/O on address: " + address);
-                    datagramIO.init(address, this, getConfiguration().getDatagramProcessor());
-                    datagramIOs.put(address, datagramIO);
-                } catch (InitializationException ex) {
+                // Datagram I/O
+                DatagramIO datagramIO = getConfiguration().createDatagramIO(networkAddressFactory);
+                if (datagramIO == null) {
+                    log.info("Configuration did not create a StreamServer for: " + address);
+                } else {
+                    try {
+                        if (log.isLoggable(Level.FINE))
+                            log.fine("Init datagram I/O on address: " + address);
+                        datagramIO.init(address, this, getConfiguration().getDatagramProcessor());
+                        datagramIOs.put(address, datagramIO);
+                    } catch (InitializationException ex) {
                     /* TODO: What are some recoverable exceptions for this?
                     Throwable cause = Exceptions.unwrap(ex);
                     if (cause instanceof BindException) {
@@ -470,21 +481,22 @@ public class RouterImpl implements Router {
                         continue; // Don't try anything else with this address
                     }
                     */
-                    throw ex;
+                        throw ex;
+                    }
                 }
             }
-        }
 
-        for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
-            if (log.isLoggable(Level.FINE))
-                log.fine("Starting stream server on address: " + entry.getKey());
-            getConfiguration().getStreamServerExecutorService().execute(entry.getValue());
-        }
+            for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
+                if (log.isLoggable(Level.FINE))
+                    log.fine("Starting stream server on address: " + entry.getKey());
+                getConfiguration().getStreamServerExecutorService().execute(entry.getValue());
+            }
 
-        for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
-            if (log.isLoggable(Level.FINE))
-                log.fine("Starting datagram I/O on address: " + entry.getKey());
-            getConfiguration().getDatagramIOExecutor().execute(entry.getValue());
+            for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
+                if (log.isLoggable(Level.FINE))
+                    log.fine("Starting datagram I/O on address: " + entry.getKey());
+                getConfiguration().getDatagramIOExecutor().execute(entry.getValue());
+            }
         }
     }
 
