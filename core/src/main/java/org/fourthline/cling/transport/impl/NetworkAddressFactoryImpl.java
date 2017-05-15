@@ -19,7 +19,6 @@ import org.fourthline.cling.model.Constants;
 import org.fourthline.cling.transport.spi.InitializationException;
 import org.fourthline.cling.transport.spi.NetworkAddressFactory;
 import org.fourthline.cling.transport.spi.NoNetworkException;
-import org.seamless.util.Iterators;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -59,8 +58,8 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
     final protected Set<String> useInterfaces = new HashSet<>();
     final protected Set<String> useAddresses = new HashSet<>();
 
-    final protected List<NetworkInterface> networkInterfaces = new ArrayList<>();
-    final protected List<InetAddress> bindAddresses = new ArrayList<>();
+    final protected List<NetworkInterface> networkInterfaces = Collections.synchronizedList(new ArrayList<NetworkInterface>());
+    final protected List<InetAddress> bindAddresses = Collections.synchronizedList(new ArrayList<InetAddress>());
 
     protected int streamListenPort;
 
@@ -141,26 +140,12 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
         return streamListenPort;
     }
 
-    public Iterator<NetworkInterface> getNetworkInterfaces() {
-        return new Iterators.Synchronized<NetworkInterface>(networkInterfaces) {
-            @Override
-            protected void synchronizedRemove(int index) {
-                synchronized (networkInterfaces) {
-                    networkInterfaces.remove(index);
-                }
-            }
-        };
+    public List<NetworkInterface> getNetworkInterfaces() {
+        return networkInterfaces;
     }
 
-    public Iterator<InetAddress> getBindAddresses() {
-        return new Iterators.Synchronized<InetAddress>(bindAddresses) {
-            @Override
-            protected void synchronizedRemove(int index) {
-                synchronized (bindAddresses) {
-                    bindAddresses.remove(index);
-                }
-            }
-        };
+    public List<InetAddress> getBindAddresses() {
+        return bindAddresses;
     }
 
     public boolean hasUsableNetwork() {
